@@ -38,4 +38,3 @@ out/
 
 # Configs sensibles
 .env
-application.properties
