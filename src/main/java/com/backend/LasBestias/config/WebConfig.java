@@ -14,7 +14,10 @@ public class WebConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
-                        .allowedOriginPatterns("http://localhost:3000") // ✅ Usa esto en lugar de allowedOrigins
+                        .allowedOriginPatterns(
+                                "https://mediumpurple-wasp-517374.hostingersite.com", // 🌐 Hostinger frontend
+                                "http://localhost:3000"  // opcional si usás React
+                        )
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(true);
