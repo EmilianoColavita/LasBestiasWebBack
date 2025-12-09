@@ -1,4 +1,7 @@
 package com.backend.LasBestias.service;
 
-public class EntradaService {
+import com.backend.LasBestias.model.Entrada;
+
+public interface EntradaService {
+    void registrarEntrada(Entrada entrada);
 }

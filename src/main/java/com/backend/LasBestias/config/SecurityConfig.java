@@ -16,7 +16,6 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.http.HttpMethod;
 
-
 @EnableMethodSecurity
 @Configuration
 @RequiredArgsConstructor
@@ -39,11 +38,19 @@ public class SecurityConfig {
                                 "/webjars/**",
                                 "/configuration/**"
                         ).permitAll()
+
+                        // ✔ APIs públicas
                         .requestMatchers(HttpMethod.GET, "/api/noticias/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/videos/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/musica/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/eventos/**").permitAll()
+
+                        // ✔ PERMITIR Mercado Pago
+                        .requestMatchers("/api/pagos/**").permitAll()
+
+                        // Admin
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

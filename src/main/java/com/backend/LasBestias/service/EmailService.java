@@ -1,4 +1,5 @@
 package com.backend.LasBestias.service;
 
-public class EmailService {
+public interface EmailService {
+    void enviarConfirmacion(String destinatario, String asunto, String mensajeHtml);
 }
