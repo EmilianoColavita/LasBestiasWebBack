@@ -24,30 +24,60 @@ public class WebhookController {
         this.emailService = emailService;
     }
 
+    // MercadoPago hace un GET primero -> responde OK
+    @GetMapping("/webhook")
+    public ResponseEntity<String> verify() {
+        return ResponseEntity.ok("Webhook OK");
+    }
+
     @PostMapping("/webhook")
-    public void webhook(@RequestBody Map<String, Object> data) {
+    public ResponseEntity<String> webhook(@RequestBody Map<String, Object> body) {
 
-        if (!"payment".equals(data.get("type"))) return;
+        try {
+            System.out.println("🔔 Webhook recibido: " + body);
 
-        Map<String, Object> datosPago = (Map<String, Object>) data.get("data");
-        String paymentId = datosPago.get("id").toString();
+            // Validar tipo de evento
+            String type = (String) body.get("type");
+            if (!"payment".equals(type)) {
+                System.out.println("⚠ Webhook ignorado (no es payment)");
+                return ResponseEntity.ok("IGNORED");
+            }
 
-        RestTemplate rest = new RestTemplate();
+            // Extraer ID dentro de "data"
+            Map<String, Object> data = (Map<String, Object>) body.get("data");
+            if (data == null || data.get("id") == null) {
+                System.out.println("⚠ Webhook incompleto: falta data.id");
+                return ResponseEntity.ok("NO DATA ID");
+            }
 
-        String url = "https://api.mercadopago.com/v1/payments/" + paymentId;
+            String paymentId = data.get("id").toString();
+            System.out.println("💳 Payment ID recibido: " + paymentId);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(accessToken);
-        headers.setContentType(MediaType.APPLICATION_JSON);
+            // Llamar API de MercadoPago para obtener detalles
+            RestTemplate rest = new RestTemplate();
+            String url = "https://api.mercadopago.com/v1/payments/" + paymentId;
 
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-        ResponseEntity<Map> response = rest.exchange(url, HttpMethod.GET, entity, Map.class);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(accessToken);
+            headers.setContentType(MediaType.APPLICATION_JSON);
 
-        Map<String, Object> mpPayment = response.getBody();
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            ResponseEntity<Map> response = rest.exchange(url, HttpMethod.GET, entity, Map.class);
 
-        if ("approved".equals(mpPayment.get("status"))) {
+            Map<String, Object> mpPayment = response.getBody();
+            if (mpPayment == null) {
+                System.out.println("❌ Error: no se pudo obtener info del pago");
+                return ResponseEntity.ok("NO PAYMENT INFO");
+            }
 
-            Map metadata = (Map) mpPayment.get("metadata");
+            String status = (String) mpPayment.get("status");
+            if (!"approved".equals(status)) {
+                System.out.println("⚠ Pago no aprobado: " + status);
+                return ResponseEntity.ok("PAYMENT NOT APPROVED");
+            }
+
+            // Metadata enviada desde tu frontend
+            Map<String, Object> metadata = (Map<String, Object>) mpPayment.get("metadata");
 
             String email = (String) metadata.get("email");
             String nombre = (String) metadata.get("nombre");
@@ -65,7 +95,7 @@ public class WebhookController {
 
             entradaService.registrarEntrada(entrada);
 
-            // Enviar email
+            // Envío de email
             String asunto = "Confirmación de compra - Las Bestias";
             String mensajeHtml =
                     "<h1>¡Gracias por tu compra!</h1>" +
@@ -77,6 +107,12 @@ public class WebhookController {
             emailService.enviarConfirmacion(email, asunto, mensajeHtml);
 
             System.out.println("✔ Entrada registrada y email enviado");
+            return ResponseEntity.ok("PROCESSED");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("ERROR");
         }
     }
 }
+
