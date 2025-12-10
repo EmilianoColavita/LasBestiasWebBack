@@ -46,8 +46,10 @@ public class PaymentController {
         preference.put("payer", payer);
         preference.put("metadata", metadata);
 
-        // ⚠ IMPORTANTE: si trabajás local, usar esto:
-        preference.put("notification_url", "https://webhook.site/e607d295-0755-4b03-ab3f-7950f685bd61");
+
+        preference.put("notification_url",
+                "https://lasbestiaswebback-is4p.onrender.com/api/pagos/webhook");
+
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(accessToken);
