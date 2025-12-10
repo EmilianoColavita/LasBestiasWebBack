@@ -11,8 +11,8 @@ import java.util.*;
 @RequestMapping("/api/pagos")
 public class PaymentController {
 
-    @Value("${MERCADOPAGO_ACCESS_TOKEN}")
-    private String accessToken;
+    private final String accessToken = System.getenv("MERCADOPAGO_ACCESS_TOKEN");
+
 
     @PostMapping("/crear-preferencia")
     public Map<String, Object> crearPreferencia(@RequestBody PaymentRequest request) {
