@@ -44,6 +44,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/videos/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/musica/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/eventos/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/entradas/**").permitAll()
 
                         // ✔ PERMITIR Mercado Pago
                         .requestMatchers("/api/pagos/**").permitAll()

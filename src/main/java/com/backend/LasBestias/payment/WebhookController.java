@@ -15,7 +15,6 @@ import java.util.Map;
 public class WebhookController {
 
     private final String accessToken = System.getenv("MERCADOPAGO_ACCESS_TOKEN");
-
     private final EntradaService entradaService;
     private final EmailService emailService;
 
@@ -24,7 +23,6 @@ public class WebhookController {
         this.emailService = emailService;
     }
 
-    // MercadoPago hace un GET de verificación primero
     @GetMapping("/webhook")
     public ResponseEntity<String> verify() {
         return ResponseEntity.ok("Webhook OK");
@@ -36,47 +34,28 @@ public class WebhookController {
         try {
             System.out.println("🔔 Webhook recibido: " + body);
 
-            // ---- 1) DETERMINAR SI ES UN EVENTO DE PAGO ---- //
-            String type = (String) body.get("type");
-            String topic = (String) body.get("topic");
-            String action = (String) body.get("action");
-
-            boolean esPago =
-                    "payment".equals(type) ||
-                            "payment".equals(topic) ||
-                            (action != null && action.startsWith("payment"));
-
-            if (!esPago) {
-                System.out.println("⚠ Webhook ignorado (no es un evento de pago)");
-                return ResponseEntity.ok("IGNORED");
-            }
-
-            // ---- 2) EXTRAER PAYMENT ID ---- //
             String paymentId = null;
 
-            // Caso 1: viene en data.id
+            // Caso 1: data.id
             Map<String, Object> data = (Map<String, Object>) body.get("data");
             if (data != null && data.get("id") != null) {
                 paymentId = data.get("id").toString();
             }
 
-            // Caso 2: viene en "resource": "/v1/payments/123456"
+            // Caso 2: resource: /v1/payments/123
             if (paymentId == null && body.get("resource") != null) {
                 String resource = body.get("resource").toString();
-
                 if (resource.contains("/payments/")) {
                     paymentId = resource.substring(resource.lastIndexOf("/") + 1);
                 }
             }
 
             if (paymentId == null) {
-                System.out.println("❌ No se encontró paymentId en el webhook");
+                System.out.println("❌ No se encontró paymentId");
                 return ResponseEntity.ok("NO PAYMENT ID");
             }
 
-            System.out.println("💳 Payment ID recibido: " + paymentId);
-
-            // ---- 3) CONSULTAR MERCADOPAGO ---- //
+            // ---- CONSULTAR API DE MERCADO PAGO ---- //
             RestTemplate rest = new RestTemplate();
             String url = "https://api.mercadopago.com/v1/payments/" + paymentId;
 
@@ -84,45 +63,37 @@ public class WebhookController {
             headers.setBearerAuth(accessToken);
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            HttpEntity<Void> entity = new HttpEntity<>(headers);
-            ResponseEntity<Map> response = rest.exchange(url, HttpMethod.GET, entity, Map.class);
+            ResponseEntity<Map> response =
+                    rest.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
 
             Map<String, Object> mpPayment = response.getBody();
-            if (mpPayment == null) {
-                System.out.println("❌ MP no devolvió información del pago");
-                return ResponseEntity.ok("NO PAYMENT INFO");
-            }
 
-            System.out.println("📦 Info completa del pago: " + mpPayment);
+            if (mpPayment == null) return ResponseEntity.ok("NO PAYMENT INFO");
 
-            // ---- 4) VALIDAR STATUS ---- //
-            String status = (String) mpPayment.get("status");
-            if (!"approved".equals(status)) {
-                System.out.println("⚠ Pago no aprobado: " + status);
+            System.out.println("📦 Pago desde MP: " + mpPayment);
+
+            // Validar estado
+            if (!"approved".equals(mpPayment.get("status"))) {
+                System.out.println("⚠ Pago NO aprobado");
                 return ResponseEntity.ok("PAYMENT NOT APPROVED");
             }
 
-            // ---- 5) EXTRAER METADATA ---- //
+            // EXTRAER METADATA
             Map<String, Object> metadata = (Map<String, Object>) mpPayment.get("metadata");
-            if (metadata == null) {
-                System.out.println("❌ Metadata viene null. No se puede registrar entrada.");
-                return ResponseEntity.ok("NO METADATA");
-            }
+            if (metadata == null) return ResponseEntity.ok("NO METADATA");
 
-            System.out.println("📌 Metadata recibida: " + metadata);
-
+            Long eventoId = Long.valueOf(metadata.get("eventoId").toString());
             String email = (String) metadata.get("email");
             String nombre = (String) metadata.get("nombre");
             String apellido = (String) metadata.get("apellido");
 
-            if (metadata.get("eventoId") == null) {
-                System.out.println("❌ Falta eventoId en metadata");
-                return ResponseEntity.ok("NO EVENT ID");
+            // EVITAR DUPLICADOS
+            if (entradaService.existePorPaymentId(paymentId)) {
+                System.out.println("⚠ Entrada ya registrada. Se ignora.");
+                return ResponseEntity.ok("ALREADY PROCESSED");
             }
 
-            Long eventoId = Long.valueOf(metadata.get("eventoId").toString());
-
-            // ---- 6) GUARDAR ENTRADA ---- //
+            // ---- GUARDAR ENTRADA ---- //
             Entrada entrada = new Entrada();
             entrada.setEventoId(eventoId);
             entrada.setEmail(email);
@@ -133,7 +104,7 @@ public class WebhookController {
 
             entradaService.registrarEntrada(entrada);
 
-            // ---- 7) ENVIAR EMAIL ---- //
+            // ---- ENVIAR EMAIL ---- //
             String asunto = "Confirmación de compra - Las Bestias";
             String mensajeHtml =
                     "<h1>¡Gracias por tu compra!</h1>" +
@@ -144,7 +115,8 @@ public class WebhookController {
 
             emailService.enviarConfirmacion(email, asunto, mensajeHtml);
 
-            System.out.println("✔ Entrada registrada y email enviado correctamente");
+            System.out.println("✔ Entrada registrada y email enviado");
+
             return ResponseEntity.ok("PROCESSED");
 
         } catch (Exception e) {
@@ -153,3 +125,4 @@ public class WebhookController {
         }
     }
 }
+

@@ -5,6 +5,8 @@ import com.backend.LasBestias.repository.EntradaRepository;
 import com.backend.LasBestias.service.EntradaService;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class EntradaServiceImpl implements EntradaService {
 
@@ -17,5 +19,21 @@ public class EntradaServiceImpl implements EntradaService {
     @Override
     public void registrarEntrada(Entrada entrada) {
         entradaRepository.save(entrada);
+    }
+
+    @Override
+    public List<Entrada> obtenerTodas() {
+        return entradaRepository.findAll();
+    }
+
+
+    @Override
+    public boolean existePorPaymentId(String paymentId) {
+        return entradaRepository.existsByPaymentId(paymentId);
+    }
+
+    @Override
+    public List<Entrada> obtenerPorEvento(Long eventoId) {
+        return entradaRepository.findByEventoId(eventoId);
     }
 }
