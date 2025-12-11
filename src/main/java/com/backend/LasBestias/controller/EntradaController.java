@@ -8,7 +8,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/entradas")
-@CrossOrigin("*")
 public class EntradaController {
 
     private final EntradaService entradaService;
