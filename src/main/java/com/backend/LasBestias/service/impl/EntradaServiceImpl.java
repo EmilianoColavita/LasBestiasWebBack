@@ -18,8 +18,15 @@ public class EntradaServiceImpl implements EntradaService {
 
     @Override
     public void registrarEntrada(Entrada entrada) {
+
+        if (entradaRepository.existsByPaymentId(entrada.getPaymentId())) {
+            System.out.println("⚠ Entrada ya existe para paymentId=" + entrada.getPaymentId());
+            return;
+        }
+
         entradaRepository.save(entrada);
     }
+
 
     @Override
     public List<Entrada> obtenerTodas() {
