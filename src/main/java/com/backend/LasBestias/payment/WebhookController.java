@@ -2,120 +2,100 @@ package com.backend.LasBestias.payment;
 
 import com.backend.LasBestias.model.Entrada;
 import com.backend.LasBestias.service.EntradaService;
-import com.backend.LasBestias.service.EmailService;
-import org.springframework.http.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/pagos")
+@Slf4j
+@RequiredArgsConstructor
 public class WebhookController {
 
-    private final String accessToken = System.getenv("MERCADOPAGO_ACCESS_TOKEN");
     private final EntradaService entradaService;
-    private final EmailService emailService;
-
-    public WebhookController(EntradaService entradaService, EmailService emailService) {
-        this.entradaService = entradaService;
-        this.emailService = emailService;
-    }
-
-    @GetMapping("/webhook")
-    public ResponseEntity<String> verify() {
-        return ResponseEntity.ok("Webhook OK");
-    }
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @PostMapping("/webhook")
-    public ResponseEntity<String> webhook(@RequestBody Map<String, Object> data) {
+    public String webhook(@RequestBody Map<String, Object> body) {
 
-        System.out.println("🔔 Webhook recibido: " + data);
+        log.info("🔔 Webhook recibido: {}", body);
 
-        String paymentId = null;
+        try {
+            String topic = (String) body.get("topic");
 
-        // Caso 1 → topic=payment
-        if ("payment".equals(data.get("topic")) && data.get("resource") != null) {
-            paymentId = data.get("resource").toString();
-        }
-
-        // Caso 2 → type=payment
-        if ("payment".equals(data.get("type"))) {
-            Map<String, Object> datosPago = (Map<String, Object>) data.get("data");
-            if (datosPago != null && datosPago.get("id") != null) {
-                paymentId = datosPago.get("id").toString();
+            // SI ES merchant_order → NO HACER NADA
+            if ("merchant_order".equals(topic)) {
+                log.info("ℹ Notificación merchant_order ignorada.");
+                return "OK";
             }
+
+            // SI ES payment → procesamos
+            if ("payment".equals(topic) || "payment.created".equals(body.get("type"))) {
+
+                Object dataObj = body.get("data");
+                if (dataObj == null) {
+                    log.error("❌ No hay data -> no se puede procesar");
+                    return "OK";
+                }
+
+                Map<String, Object> data = (Map<String, Object>) dataObj;
+
+                // ID de pago
+                Object paymentIdObj = data.get("id");
+                if (paymentIdObj == null) {
+                    log.error("❌ No se encontró paymentId");
+                    return "OK";
+                }
+
+                String paymentId = paymentIdObj.toString();
+                log.info("✔ paymentId detectado: {}", paymentId);
+
+                // Obtener datos completos desde Mercado Pago
+                Map<String, Object> paymentInfo = mpClient.getPayment(paymentId);
+                log.info("📦 Pago desde MP: {}", paymentInfo);
+
+                String status = (String) paymentInfo.get("status");
+                if (!"approved".equals(status)) {
+                    log.info("⏳ Pago no aprobado todavía ({})", status);
+                    return "OK";
+                }
+
+                // EXTRAER metadata
+                Map<String, Object> metadata = (Map<String, Object>) paymentInfo.get("metadata");
+                if (metadata == null) {
+                    log.error("❌ No había metadata en el pago.");
+                    return "OK";
+                }
+
+                // EVITAR DUPLICADOS
+                if (entradaService.existsByPaymentId(paymentId)) {
+                    log.warn("⚠ Entrada ya registrada → evitando duplicado. ({})", paymentId);
+                    return "OK";
+                }
+
+                // CREAR ENTRADA
+                Entrada entrada = new Entrada();
+                entrada.setEventoId(Long.valueOf(metadata.get("evento_id").toString()));
+                entrada.setNombre((String) metadata.get("nombre"));
+                entrada.setApellido((String) metadata.get("apellido"));
+                entrada.setEmail((String) metadata.get("email"));
+                entrada.setPaymentId(paymentId);
+                entrada.setFechaCompra(LocalDateTime.now());
+
+                entradaService.registrarEntrada(entrada);
+
+                log.info("🎟 Entrada registrada correctamente para {}", entrada.getEmail());
+            }
+
+            return "OK";
+
+        } catch (Exception e) {
+            log.error("🔥 ERROR en webhook: ", e);
+            return "ERROR";
         }
-
-        if (paymentId == null) {
-            System.out.println("❌ No se encontró paymentId");
-            return ResponseEntity.ok("NO_PAYMENT_ID");
-        }
-
-        System.out.println("✔ paymentId detectado: " + paymentId);
-
-        // ⚠️ Evitar duplicados
-        if (entradaService.existePorPaymentId(paymentId)) {
-            System.out.println("⚠ Entrada YA existente. No se crea nuevamente.");
-            return ResponseEntity.ok("ALREADY_PROCESSED");
-        }
-
-        // Consultar pago real en Mercado Pago
-        RestTemplate rest = new RestTemplate();
-        String url = "https://api.mercadopago.com/v1/payments/" + paymentId;
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(accessToken);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-        ResponseEntity<Map> response = rest.exchange(url, HttpMethod.GET, entity, Map.class);
-
-        Map<String, Object> mpPayment = response.getBody();
-        System.out.println("📦 Pago desde MP: " + mpPayment);
-
-        // Solo crear entrada si está aprobado
-        if (!"approved".equals(mpPayment.get("status"))) {
-            System.out.println("⚠ Pago NO aprobado: " + mpPayment.get("status"));
-            return ResponseEntity.ok("NOT_APPROVED");
-        }
-
-        // Obtener metadata correctamente
-        Map<String, Object> metadata = (Map<String, Object>) mpPayment.get("metadata");
-
-        String email = (String) metadata.get("email");
-        String nombre = (String) metadata.get("nombre");
-        String apellido = (String) metadata.get("apellido");
-        Long eventoId = Long.valueOf(metadata.get("eventoId").toString()); // ← CORREGIDO
-
-        // Crear entrada
-        Entrada entrada = new Entrada();
-        entrada.setEventoId(eventoId);
-        entrada.setEmail(email);
-        entrada.setNombre(nombre);
-        entrada.setApellido(apellido);
-        entrada.setPaymentId(paymentId);
-        entrada.setFechaCompra(LocalDateTime.now());
-
-        entradaService.registrarEntrada(entrada);
-
-        System.out.println("✔ Entrada registrada");
-
-        // Enviar email
-        String asunto = "Confirmación de compra - Las Bestias";
-        String mensajeHtml =
-                "<h1>¡Gracias por tu compra!</h1>" +
-                        "<p>Hola " + nombre + " " + apellido + ", tu entrada fue confirmada.</p>" +
-                        "<p><strong>Evento ID:</strong> " + eventoId + "</p>" +
-                        "<p><strong>Payment ID:</strong> " + paymentId + "</p>" +
-                        "<p>Nos vemos pronto 🤘🔥</p>";
-
-        emailService.enviarConfirmacion(email, asunto, mensajeHtml);
-
-        return ResponseEntity.ok("PROCESSED");
     }
-
-
 }
-
