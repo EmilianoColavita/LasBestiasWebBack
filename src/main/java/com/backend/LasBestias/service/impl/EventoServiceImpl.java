@@ -16,6 +16,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -87,6 +89,20 @@ public class EventoServiceImpl implements EventoService {
     public void delete(Long id) {
         eventoRepository.delete(getEvento(id));
     }
+
+    @Override
+    public List<EventoDTO> getEventosFuturos() {
+        LocalDateTime ahora = LocalDateTime.now();
+
+        List<Evento> eventos = eventoRepository.findByFechaEventoAfterOrderByFechaEventoAsc(ahora);
+
+        return eventos.stream().map(evento -> {
+            EventoDTO dto = EventoMapper.MAPPER.toDto(evento);
+            dto.setImagenUrl(imageService.getS3url(evento.getId(), ImageType.EVENTO));
+            return dto;
+        }).toList();
+    }
+
 
     private Evento getEvento(Long id) {
         Optional<Evento> evento = eventoRepository.findById(id);

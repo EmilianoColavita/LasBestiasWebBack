@@ -3,6 +3,7 @@ package com.backend.LasBestias.config;
 import com.backend.LasBestias.service.impl.CustomUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.*;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -14,7 +15,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.http.HttpMethod;
 
 @EnableMethodSecurity
 @Configuration
@@ -27,35 +27,39 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .cors().and()
-                .csrf().disable()
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> { })
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authenticationProvider(daoAuthenticationProvider())
                 .authorizeHttpRequests(auth -> auth
+
+                        // Endpoints completamente públicos
                         .requestMatchers(
                                 "/api/auth/**",
+                                "/api/noticias/**",
+                                "/api/videos/**",
+                                "/api/musica/**",
+                                "/api/entradas/**",
+                                "/api/pagos/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/swagger-resources/**",
                                 "/webjars/**",
-                                "/configuration/**"
+                                "/configuration/**",
+                                "/error"
                         ).permitAll()
-
-                        // ✔ APIs públicas
-                        .requestMatchers(HttpMethod.GET, "/api/noticias/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/videos/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/musica/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/eventos/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/entradas/**").permitAll()
-
-                        // ✔ PERMITIR Mercado Pago
-                        .requestMatchers("/api/pagos/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/eventos/lista/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/eventos/lista/futuros").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/api/eventos/**").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/api/eventos/lista/**").permitAll()
 
                         // Admin
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
+                        // Todo lo demás pide autenticación
                         .anyRequest().authenticated()
                 )
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authenticationProvider(daoAuthenticationProvider())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

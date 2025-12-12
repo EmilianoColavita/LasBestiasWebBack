@@ -77,6 +77,14 @@ public class EventoController {
         return ResponseEntity.ok(eventoService.getById(id));
     }
 
+    // 🟢 Obtener solo eventos futuros
+    @GetMapping("/lista/futuros")
+    @Operation(summary = "Obtener solo eventos futuros")
+    public ResponseEntity<List<EventoDTO>> getEventosFuturos() {
+        return ResponseEntity.ok(eventoService.getEventosFuturos());
+    }
+
+
     // 🟣 Actualizar un evento
     @PutMapping(value = "/{id}", consumes = "multipart/form-data")
     @Operation(summary = "Actualizar un evento")
