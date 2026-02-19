@@ -98,7 +98,7 @@ public class WebhookController {
                 return ResponseEntity.ok("NO_METADATA");
             }
 
-            Long eventoId = Long.valueOf(metadata.get("evento_id").toString());
+            Long eventoId = Long.valueOf(metadata.get("eventoId").toString());
             String email = metadata.get("email").toString();
             String nombre = metadata.get("nombre").toString();
             String apellido = metadata.get("apellido").toString();

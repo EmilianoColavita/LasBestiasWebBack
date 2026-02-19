@@ -11,7 +11,11 @@ import java.util.*;
 @RequestMapping("/api/pagos")
 public class PaymentController {
 
-    private final String accessToken = System.getenv("MERCADOPAGO_ACCESS_TOKEN");
+    @Value("${mercadopago.access_token}")
+    private String accessToken;
+
+    @Value("${app.frontend.url}")
+    private String frontendUrl;
 
     @PostMapping("/crear-preferencia")
     public Map<String, Object> crearPreferencia(@RequestBody PaymentRequest request) {
@@ -19,7 +23,6 @@ public class PaymentController {
         String url = "https://api.mercadopago.com/checkout/preferences";
         RestTemplate rest = new RestTemplate();
 
-        // ÍTEM
         Map<String, Object> item = Map.of(
                 "title", "Entrada para evento " + request.getEventoId(),
                 "quantity", 1,
@@ -27,14 +30,12 @@ public class PaymentController {
                 "currency_id", "ARS"
         );
 
-        // PAGADOR
         Map<String, Object> payer = Map.of(
                 "email", request.getEmail(),
                 "name", request.getNombre(),
                 "surname", request.getApellido()
         );
 
-        // METADATA
         Map<String, Object> metadata = Map.of(
                 "eventoId", request.getEventoId(),
                 "email", request.getEmail(),
@@ -42,10 +43,15 @@ public class PaymentController {
                 "apellido", request.getApellido()
         );
 
-        // EXTERNAL REFERENCE
         String externalRef = UUID.randomUUID().toString();
 
-        // PREFERENCE COMPLETA
+        // 🔥 Back URLs dinámicas
+        Map<String, Object> backUrls = Map.of(
+                "success", frontendUrl + "/pago-exitoso",
+                "failure", frontendUrl + "/pago-error",
+                "pending", frontendUrl + "/pago-pendiente"
+        );
+
         Map<String, Object> preference = new HashMap<>();
         preference.put("items", List.of(item));
         preference.put("payer", payer);
@@ -53,6 +59,9 @@ public class PaymentController {
         preference.put("external_reference", externalRef);
         preference.put("notification_url",
                 "https://lasbestiaswebback-is4p.onrender.com/api/pagos/webhook");
+
+        preference.put("back_urls", backUrls);
+        preference.put("auto_return", "approved");
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(accessToken);
@@ -65,4 +74,3 @@ public class PaymentController {
         return response.getBody();
     }
 }
-
