@@ -17,7 +17,7 @@ import java.util.Map;
 @Slf4j
 public class WebhookController {
 
-    @Value("${MERCADOPAGO_ACCESS_TOKEN}")
+    @Value("${mercadopago.access_token}")
     private String accessToken;
 
     private final EntradaService entradaService;
