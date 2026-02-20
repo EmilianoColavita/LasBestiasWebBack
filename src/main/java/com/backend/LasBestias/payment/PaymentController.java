@@ -17,6 +17,9 @@ public class PaymentController {
     @Value("${app.frontend.url}")
     private String frontendUrl;
 
+    @Value("${app.backend.url}")
+    private String backendUrl;
+
     @PostMapping("/crear-preferencia")
     public Map<String, Object> crearPreferencia(@RequestBody PaymentRequest request) {
 
@@ -45,7 +48,6 @@ public class PaymentController {
 
         String externalRef = UUID.randomUUID().toString();
 
-        // 🔥 Back URLs dinámicas
         Map<String, Object> backUrls = Map.of(
                 "success", frontendUrl + "/pago-exitoso",
                 "failure", frontendUrl + "/pago-error",
@@ -57,8 +59,10 @@ public class PaymentController {
         preference.put("payer", payer);
         preference.put("metadata", metadata);
         preference.put("external_reference", externalRef);
+
+        // 🔥 Webhook dinámico apuntando a tu nuevo backend
         preference.put("notification_url",
-                "https://lasbestiaswebback-is4p.onrender.com/api/pagos/webhook");
+                backendUrl + "/api/pagos/webhook");
 
         preference.put("back_urls", backUrls);
         preference.put("auto_return", "approved");
@@ -67,9 +71,11 @@ public class PaymentController {
         headers.setBearerAuth(accessToken);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(preference, headers);
+        HttpEntity<Map<String, Object>> entity =
+                new HttpEntity<>(preference, headers);
 
-        ResponseEntity<Map> response = rest.postForEntity(url, entity, Map.class);
+        ResponseEntity<Map> response =
+                rest.postForEntity(url, entity, Map.class);
 
         return response.getBody();
     }
