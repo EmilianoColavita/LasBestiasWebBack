@@ -15,7 +15,8 @@ public class WebConfig {
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
                         .allowedOriginPatterns(
-                                "https://lasbestiasok.com.ar", // 🌐 Hostinger frontend
+                                "https://lasbestiasok.com.ar",
+                                "https://www.lasbestiasok.com.ar",// 🌐 Hostinger frontend
                                 "http://localhost:3000"  // opcional si usás React
                         )
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
