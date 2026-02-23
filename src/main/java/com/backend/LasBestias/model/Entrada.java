@@ -17,6 +17,7 @@ public class Entrada {
     private String nombre;
     private String apellido;
     private String email;
+    @Column(unique = true)
     private String paymentId;
 
     private LocalDateTime fechaCompra;

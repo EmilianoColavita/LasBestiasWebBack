@@ -125,8 +125,13 @@ public class WebhookController {
             entrada.setPaymentId(paymentId);
             entrada.setFechaCompra(LocalDateTime.now());
 
-            entradaService.registrarEntrada(entrada);
-            log.info("🎟 Entrada registrada correctamente en DB");
+            try {
+                entradaService.registrarEntrada(entrada);
+                log.info("🎟 Entrada registrada correctamente en DB");
+            } catch (Exception ex) {
+                log.warn("⚠ Pago ya registrado (concurrencia): {}", paymentId);
+                return ResponseEntity.ok("DUPLICATE_DB");
+            }
 
             // Enviar mail
             try {
