@@ -43,12 +43,12 @@ public class WebhookController {
 
             String paymentId = null;
 
-            // Caso 1 → viene como query param
+            // Caso query param
             if ("payment".equals(topic) || "payment".equals(type)) {
                 paymentId = id;
             }
 
-            // Caso 2 → viene como JSON
+            // Caso JSON
             if (body != null && body.containsKey("data")) {
                 Map<String, Object> data =
                         (Map<String, Object>) body.get("data");
@@ -70,7 +70,7 @@ public class WebhookController {
                 return ResponseEntity.ok("DUPLICATE");
             }
 
-            // 🔥 Consultar pago real en Mercado Pago
+            // Consultar pago real en MP
             RestTemplate rest = new RestTemplate();
             String url = "https://api.mercadopago.com/v1/payments/" + paymentId;
 
@@ -96,18 +96,26 @@ public class WebhookController {
                 return ResponseEntity.ok("NOT_APPROVED");
             }
 
-            Map<String, Object> metadata =
-                    (Map<String, Object>) mpPayment.get("metadata");
+            // 🔥 USAMOS external_reference
+            String externalRef =
+                    (String) mpPayment.get("external_reference");
 
-            if (metadata == null) {
-                log.error("❌ Pago aprobado sin metadata");
-                return ResponseEntity.ok("NO_METADATA");
+            if (externalRef == null) {
+                log.error("❌ Pago sin external_reference");
+                return ResponseEntity.ok("NO_EXTERNAL_REF");
             }
 
-            Long eventoId = Long.valueOf(metadata.get("eventoId").toString());
-            String email = metadata.get("email").toString();
-            String nombre = metadata.get("nombre").toString();
-            String apellido = metadata.get("apellido").toString();
+            String[] parts = externalRef.split("\\|");
+
+            if (parts.length < 4) {
+                log.error("❌ external_reference inválido: {}", externalRef);
+                return ResponseEntity.ok("INVALID_EXTERNAL_REF");
+            }
+
+            Long eventoId = Long.valueOf(parts[0]);
+            String email = parts[1];
+            String nombre = parts[2];
+            String apellido = parts[3];
 
             Entrada entrada = new Entrada();
             entrada.setEventoId(eventoId);
@@ -120,7 +128,7 @@ public class WebhookController {
             entradaService.registrarEntrada(entrada);
             log.info("🎟 Entrada registrada correctamente en DB");
 
-            // 🔥 Envío de mail con control de error independiente
+            // Enviar mail
             try {
 
                 String asunto = "Confirmación de compra - Las Bestias";

@@ -1,5 +1,6 @@
 package com.backend.LasBestias.payment;
 
+import lombok.Data;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
@@ -39,14 +40,12 @@ public class PaymentController {
                 "surname", request.getApellido()
         );
 
-        Map<String, Object> metadata = Map.of(
-                "eventoId", request.getEventoId(),
-                "email", request.getEmail(),
-                "nombre", request.getNombre(),
-                "apellido", request.getApellido()
-        );
-
-        String externalRef = UUID.randomUUID().toString();
+        // 🔥 EXTERNAL REFERENCE con todos los datos
+        String externalRef =
+                request.getEventoId() + "|" +
+                        request.getEmail() + "|" +
+                        request.getNombre() + "|" +
+                        request.getApellido();
 
         Map<String, Object> backUrls = Map.of(
                 "success", frontendUrl + "/pago-exitoso",
@@ -57,10 +56,9 @@ public class PaymentController {
         Map<String, Object> preference = new HashMap<>();
         preference.put("items", List.of(item));
         preference.put("payer", payer);
-        preference.put("metadata", metadata);
         preference.put("external_reference", externalRef);
 
-        // 🔥 Webhook dinámico apuntando a tu nuevo backend
+        // Webhook directo al backend
         preference.put("notification_url",
                 backendUrl + "/api/pagos/webhook");
 
