@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
+import java.util.UUID;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -124,6 +125,9 @@ public class WebhookController {
             entrada.setApellido(apellido);
             entrada.setPaymentId(paymentId);
             entrada.setFechaCompra(LocalDateTime.now());
+
+            String qrToken = UUID.randomUUID().toString();
+            entrada.setQrToken(qrToken);
 
             try {
                 entradaService.registrarEntrada(entrada);

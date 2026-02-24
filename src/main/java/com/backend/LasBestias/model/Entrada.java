@@ -17,8 +17,16 @@ public class Entrada {
     private String nombre;
     private String apellido;
     private String email;
+
     @Column(unique = true)
     private String paymentId;
+
+    @Column(unique = true)
+    private String qrToken;
+
+    private boolean usado = false;
+
+    private LocalDateTime fechaUso;
 
     private LocalDateTime fechaCompra;
 }

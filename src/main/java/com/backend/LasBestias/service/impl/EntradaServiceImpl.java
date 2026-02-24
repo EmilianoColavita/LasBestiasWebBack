@@ -6,6 +6,7 @@ import com.backend.LasBestias.service.EntradaService;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class EntradaServiceImpl implements EntradaService {
@@ -31,6 +32,21 @@ public class EntradaServiceImpl implements EntradaService {
     @Override
     public List<Entrada> obtenerTodas() {
         return entradaRepository.findAll();
+    }
+
+    @Override
+    public Optional<Entrada> buscarPorQrToken(String qrToken) {
+        return entradaRepository.findByQrToken(qrToken);
+    }
+
+    @Override
+    public void guardar(Entrada entrada) {
+        entradaRepository.save(entrada);
+    }
+
+    @Override
+    public Optional<Entrada> buscarPorPaymentId(String paymentId){
+        return entradaRepository.findByPaymentId(paymentId);
     }
 
 

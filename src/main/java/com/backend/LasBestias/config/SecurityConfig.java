@@ -33,31 +33,25 @@ public class SecurityConfig {
                 .authenticationProvider(daoAuthenticationProvider())
                 .authorizeHttpRequests(auth -> auth
 
-                        // Endpoints completamente públicos
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/noticias/**",
                                 "/api/videos/**",
                                 "/api/musica/**",
-                                "/api/entradas/**",
                                 "/api/pagos/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
-                                "/swagger-resources/**",
-                                "/webjars/**",
-                                "/configuration/**",
                                 "/error"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/eventos/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/eventos/lista/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/eventos/lista/futuros").permitAll()
-                        .requestMatchers(HttpMethod.OPTIONS, "/api/eventos/**").permitAll()
-                        .requestMatchers(HttpMethod.OPTIONS, "/api/eventos/lista/**").permitAll()
 
-                        // Admin
+                        .requestMatchers(HttpMethod.GET, "/api/eventos/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/entradas/payment/**").permitAll()
+
+                        // ADMIN
+                        .requestMatchers(HttpMethod.POST, "/api/entradas/validar").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/entradas/**").hasRole("ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
-                        // Todo lo demás pide autenticación
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
