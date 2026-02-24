@@ -3,6 +3,7 @@ package com.backend.LasBestias.payment;
 import com.backend.LasBestias.model.Entrada;
 import com.backend.LasBestias.service.EntradaService;
 import com.backend.LasBestias.service.EmailService;
+import com.backend.LasBestias.service.QRService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -24,10 +25,14 @@ public class WebhookController {
     private final EntradaService entradaService;
     private final EmailService emailService;
 
+    private final QRService qrService;
+
     public WebhookController(EntradaService entradaService,
-                             EmailService emailService) {
+                             EmailService emailService,
+                             QRService qrService) {
         this.entradaService = entradaService;
         this.emailService = emailService;
+        this.qrService = qrService;
     }
 
     @PostMapping("/webhook")
@@ -142,15 +147,19 @@ public class WebhookController {
 
                 String asunto = "Confirmación de compra - Las Bestias";
 
+                byte[] qrImage = qrService.generarQR(qrToken);
+
                 String mensajeHtml =
                         "<h1>¡Gracias por tu compra!</h1>" +
                                 "<p>Hola " + nombre + " " + apellido + ",</p>" +
                                 "<p>Tu entrada fue confirmada correctamente.</p>" +
                                 "<p><strong>Evento ID:</strong> " + eventoId + "</p>" +
                                 "<p><strong>Payment ID:</strong> " + paymentId + "</p>" +
+                                "<br><img src='cid:qrImage' width='250' />" +
+                                "<br><p>Presentá este código en el ingreso.</p>" +
                                 "<br><p>¡Nos vemos en el show! 🤘</p>";
 
-                emailService.enviarConfirmacion(email, asunto, mensajeHtml);
+                emailService.enviarConfirmacion(email, asunto, mensajeHtml, qrImage);
 
                 log.info("📧 Email enviado correctamente a {}", email);
 

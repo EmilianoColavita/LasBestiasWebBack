@@ -17,7 +17,10 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
-    public void enviarConfirmacion(String destinatario, String asunto, String mensajeHtml) {
+    public void enviarConfirmacion(String destinatario,
+                                   String asunto,
+                                   String mensajeHtml,
+                                   byte[] qrImage) {
 
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -26,14 +29,17 @@ public class EmailServiceImpl implements EmailService {
 
             helper.setTo(destinatario);
             helper.setSubject(asunto);
-            helper.setText(mensajeHtml, true); // TRUE → HTML
+            helper.setText(mensajeHtml, true);
+
+            helper.addInline(
+                    "qrImage",
+                    new org.springframework.core.io.ByteArrayResource(qrImage),
+                    "image/png"
+            );
 
             mailSender.send(message);
 
-            System.out.println("✔ Email enviado a " + destinatario);
-
         } catch (MessagingException e) {
-            e.printStackTrace();
             throw new RuntimeException("Error enviando email", e);
         }
     }

@@ -2,6 +2,9 @@ package com.backend.LasBestias.controller;
 
 import com.backend.LasBestias.model.Entrada;
 import com.backend.LasBestias.service.EntradaService;
+import com.backend.LasBestias.service.QRService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,9 +18,12 @@ import java.util.Optional;
 public class EntradaController {
 
     private final EntradaService entradaService;
+    private final QRService qrService;
 
-    public EntradaController(EntradaService entradaService) {
+    public EntradaController(EntradaService entradaService,
+                             QRService qrService) {
         this.entradaService = entradaService;
+        this.qrService = qrService;
     }
 
     // Listar TODAS las entradas
@@ -72,6 +78,26 @@ public class EntradaController {
         }
 
         return ResponseEntity.ok(entrada.get());
+    }
+
+    @GetMapping("/qr/{token}")
+    public ResponseEntity<byte[]> descargarQR(@PathVariable String token) {
+
+        Optional<Entrada> entrada =
+                entradaService.buscarPorQrToken(token);
+
+        if (entrada.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        byte[] qrImage =
+                qrService.generarQR(token);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=entrada.png")
+                .contentType(MediaType.IMAGE_PNG)
+                .body(qrImage);
     }
 }
 
