@@ -1,11 +1,14 @@
 package com.backend.LasBestias.payment;
 
 import com.backend.LasBestias.model.Entrada;
+import com.backend.LasBestias.model.PagoProcesado;
+import com.backend.LasBestias.repository.PagoProcesadoRepository;
 import com.backend.LasBestias.service.*;
 import com.backend.LasBestias.service.dto.response.EventoDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
@@ -25,19 +28,23 @@ public class WebhookController {
     private final QRService qrService;
     private final EventoService eventoService;
     private final TicketPDFService ticketPDFService;
+    private final PagoProcesadoRepository pagoProcesadoRepository;
 
     public WebhookController(EntradaService entradaService,
                              EmailService emailService,
                              QRService qrService,
                              EventoService eventoService,
-                             TicketPDFService ticketPDFService) {
+                             TicketPDFService ticketPDFService,
+                             PagoProcesadoRepository pagoProcesadoRepository) {
         this.entradaService = entradaService;
         this.emailService = emailService;
         this.qrService = qrService;
         this.eventoService = eventoService;
         this.ticketPDFService = ticketPDFService;
+        this.pagoProcesadoRepository = pagoProcesadoRepository;
     }
 
+    @Transactional
     @PostMapping("/webhook")
     public ResponseEntity<String> webhook(
             @RequestParam(required = false) String topic,
@@ -49,12 +56,12 @@ public class WebhookController {
 
             String paymentId = null;
 
-            // Obtener paymentId desde query params
+            // 1️⃣ Obtener paymentId desde query params
             if ("payment".equals(topic) || "payment".equals(type)) {
                 paymentId = id;
             }
 
-            // Obtener paymentId desde body
+            // 2️⃣ Obtener paymentId desde body
             if (body != null && body.containsKey("data")) {
                 Map<String, Object> data =
                         (Map<String, Object>) body.get("data");
@@ -68,12 +75,21 @@ public class WebhookController {
                 return ResponseEntity.ok("NO_PAYMENT_ID");
             }
 
-            // 🔐 Anti doble webhook
-            if (entradaService.existePorPaymentId(paymentId)) {
+            log.info("Webhook recibido para paymentId: {}", paymentId);
+
+            // 🔐 BLOQUEO REAL CONTRA DUPLICADOS
+            if (pagoProcesadoRepository.existsById(paymentId)) {
+                log.info("Payment {} ya fue procesado", paymentId);
                 return ResponseEntity.ok("DUPLICATE");
             }
 
-            // Consultar MercadoPago
+            // 🔒 Registrar inmediatamente como procesado
+            PagoProcesado pagoProcesado = new PagoProcesado();
+            pagoProcesado.setPaymentId(paymentId);
+            pagoProcesado.setFechaProcesado(LocalDateTime.now());
+            pagoProcesadoRepository.save(pagoProcesado);
+
+            // 3️⃣ Consultar MercadoPago
             RestTemplate rest = new RestTemplate();
             String url = "https://api.mercadopago.com/v1/payments/" + paymentId;
 
@@ -90,10 +106,11 @@ public class WebhookController {
             if (mpPayment == null) return ResponseEntity.ok("NO_MP_DATA");
 
             if (!"approved".equals(mpPayment.get("status"))) {
+                log.info("Payment {} no aprobado", paymentId);
                 return ResponseEntity.ok("NOT_APPROVED");
             }
 
-            // Obtener external_reference
+            // 4️⃣ Obtener external_reference
             String externalRef =
                     (String) mpPayment.get("external_reference");
 
@@ -110,13 +127,7 @@ public class WebhookController {
             String dni = parts[4];
             Integer cantidad = Integer.valueOf(parts[5]);
 
-            // Buscar evento correctamente con tu service
             EventoDTO evento = eventoService.getById(eventoId);
-
-            if (evento == null) {
-                return ResponseEntity.ok("EVENT_NOT_FOUND");
-            }
-
             String nombreEvento = evento.getNombre();
 
             String asunto = "🎟 Tus entradas - Las Bestias";
@@ -159,7 +170,7 @@ public class WebhookController {
                         .append("' width='250'/><br><br>");
             }
 
-            // Generar PDF ticket
+            // 5️⃣ Generar PDF
             byte[] pdf = ticketPDFService.generarPDF(
                     nombre,
                     nombreEvento,
@@ -167,7 +178,7 @@ public class WebhookController {
                     codigosQR
             );
 
-            // Enviar email
+            // 6️⃣ Enviar email
             emailService.enviarMultiplesQR(
                     email,
                     asunto,
@@ -175,6 +186,8 @@ public class WebhookController {
                     qrImages,
                     pdf
             );
+
+            log.info("Payment {} procesado correctamente", paymentId);
 
             return ResponseEntity.ok("OK");
 
