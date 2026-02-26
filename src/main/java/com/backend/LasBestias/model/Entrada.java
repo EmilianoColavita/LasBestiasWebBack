@@ -14,19 +14,20 @@ public class Entrada {
     private Long id;
 
     private Long eventoId;
-    private String nombre;
-    private String apellido;
-    private String email;
 
-    @Column(unique = true)
+    private String nombreComprador;
+    private String email;
+    private String telefono;
+    private String dni;
+
     private String paymentId;
 
     @Column(unique = true)
     private String qrToken;
 
-    private boolean usado = false;
+    private LocalDateTime fechaCompra;
 
     private LocalDateTime fechaUso;
 
-    private LocalDateTime fechaCompra;
+    private Boolean usada = false;
 }

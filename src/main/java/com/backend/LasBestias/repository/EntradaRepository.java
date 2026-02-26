@@ -14,5 +14,6 @@ public interface EntradaRepository extends JpaRepository<Entrada, Long> {
 
     Optional<Entrada> findByQrToken(String qrToken);
 
-    Optional<Entrada> findByPaymentId(String paymentId);
+    List<Entrada> findByPaymentId(String paymentId);
+
 }

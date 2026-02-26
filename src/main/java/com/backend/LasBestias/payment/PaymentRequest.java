@@ -4,8 +4,13 @@ import lombok.Data;
 
 @Data
 public class PaymentRequest {
+
     private Long eventoId;
-    private String email;
+
     private String nombre;
-    private String apellido;
+    private String email;
+    private String telefono;
+    private String dni;
+
+    private Integer cantidad;
 }

@@ -1,18 +1,16 @@
 package com.backend.LasBestias.payment;
 
 import com.backend.LasBestias.model.Entrada;
-import com.backend.LasBestias.service.EntradaService;
-import com.backend.LasBestias.service.EmailService;
-import com.backend.LasBestias.service.QRService;
+import com.backend.LasBestias.service.*;
+import com.backend.LasBestias.service.dto.response.EventoDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
-import java.util.UUID;
 
 import java.time.LocalDateTime;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/pagos")
@@ -24,15 +22,20 @@ public class WebhookController {
 
     private final EntradaService entradaService;
     private final EmailService emailService;
-
     private final QRService qrService;
+    private final EventoService eventoService;
+    private final TicketPDFService ticketPDFService;
 
     public WebhookController(EntradaService entradaService,
                              EmailService emailService,
-                             QRService qrService) {
+                             QRService qrService,
+                             EventoService eventoService,
+                             TicketPDFService ticketPDFService) {
         this.entradaService = entradaService;
         this.emailService = emailService;
         this.qrService = qrService;
+        this.eventoService = eventoService;
+        this.ticketPDFService = ticketPDFService;
     }
 
     @PostMapping("/webhook")
@@ -42,19 +45,16 @@ public class WebhookController {
             @RequestParam(required = false) String id,
             @RequestBody(required = false) Map<String, Object> body) {
 
-        log.info("🔔 Webhook recibido - topic: {}, type: {}, id: {}, body: {}",
-                topic, type, id, body);
-
         try {
 
             String paymentId = null;
 
-            // Caso query param
+            // Obtener paymentId desde query params
             if ("payment".equals(topic) || "payment".equals(type)) {
                 paymentId = id;
             }
 
-            // Caso JSON
+            // Obtener paymentId desde body
             if (body != null && body.containsKey("data")) {
                 Map<String, Object> data =
                         (Map<String, Object>) body.get("data");
@@ -65,18 +65,15 @@ public class WebhookController {
             }
 
             if (paymentId == null) {
-                log.warn("⚠ No se encontró paymentId");
                 return ResponseEntity.ok("NO_PAYMENT_ID");
             }
 
-            log.info("✔ Payment ID detectado: {}", paymentId);
-
+            // 🔐 Anti doble webhook
             if (entradaService.existePorPaymentId(paymentId)) {
-                log.warn("⚠ Pago ya procesado ({})", paymentId);
                 return ResponseEntity.ok("DUPLICATE");
             }
 
-            // Consultar pago real en MP
+            // Consultar MercadoPago
             RestTemplate rest = new RestTemplate();
             String url = "https://api.mercadopago.com/v1/payments/" + paymentId;
 
@@ -90,87 +87,99 @@ public class WebhookController {
 
             Map<String, Object> mpPayment = response.getBody();
 
-            if (mpPayment == null) {
-                log.error("❌ No llegó info del pago desde MP");
-                return ResponseEntity.ok("NO_MP_DATA");
-            }
+            if (mpPayment == null) return ResponseEntity.ok("NO_MP_DATA");
 
-            String status = (String) mpPayment.get("status");
-
-            if (!"approved".equals(status)) {
-                log.info("⏳ Pago no aprobado aún ({})", status);
+            if (!"approved".equals(mpPayment.get("status"))) {
                 return ResponseEntity.ok("NOT_APPROVED");
             }
 
-            // 🔥 USAMOS external_reference
+            // Obtener external_reference
             String externalRef =
                     (String) mpPayment.get("external_reference");
 
             if (externalRef == null) {
-                log.error("❌ Pago sin external_reference");
                 return ResponseEntity.ok("NO_EXTERNAL_REF");
             }
 
             String[] parts = externalRef.split("\\|");
 
-            if (parts.length < 4) {
-                log.error("❌ external_reference inválido: {}", externalRef);
-                return ResponseEntity.ok("INVALID_EXTERNAL_REF");
-            }
-
             Long eventoId = Long.valueOf(parts[0]);
             String email = parts[1];
             String nombre = parts[2];
-            String apellido = parts[3];
+            String telefono = parts[3];
+            String dni = parts[4];
+            Integer cantidad = Integer.valueOf(parts[5]);
 
-            Entrada entrada = new Entrada();
-            entrada.setEventoId(eventoId);
-            entrada.setEmail(email);
-            entrada.setNombre(nombre);
-            entrada.setApellido(apellido);
-            entrada.setPaymentId(paymentId);
-            entrada.setFechaCompra(LocalDateTime.now());
+            // Buscar evento correctamente con tu service
+            EventoDTO evento = eventoService.getById(eventoId);
 
-            String qrToken = UUID.randomUUID().toString();
-            entrada.setQrToken(qrToken);
-
-            try {
-                entradaService.registrarEntrada(entrada);
-                log.info("🎟 Entrada registrada correctamente en DB");
-            } catch (Exception ex) {
-                log.warn("⚠ Pago ya registrado (concurrencia): {}", paymentId);
-                return ResponseEntity.ok("DUPLICATE_DB");
+            if (evento == null) {
+                return ResponseEntity.ok("EVENT_NOT_FOUND");
             }
 
-            // Enviar mail
-            try {
+            String nombreEvento = evento.getNombre();
 
-                String asunto = "Confirmación de compra - Las Bestias";
+            String asunto = "🎟 Tus entradas - Las Bestias";
 
-                byte[] qrImage = qrService.generarQR(qrToken);
+            StringBuilder mensajeHtml = new StringBuilder();
+            mensajeHtml.append("<h1>¡Gracias por tu compra!</h1>");
+            mensajeHtml.append("<p>Hola ").append(nombre).append("</p>");
+            mensajeHtml.append("<p>Evento: <b>")
+                    .append(nombreEvento)
+                    .append("</b></p>");
+            mensajeHtml.append("<p>Cantidad: ")
+                    .append(cantidad)
+                    .append("</p><br>");
 
-                String mensajeHtml =
-                        "<h1>¡Gracias por tu compra!</h1>" +
-                                "<p>Hola " + nombre + " " + apellido + ",</p>" +
-                                "<p>Tu entrada fue confirmada correctamente.</p>" +
-                                "<p><strong>Evento ID:</strong> " + eventoId + "</p>" +
-                                "<p><strong>Payment ID:</strong> " + paymentId + "</p>" +
-                                "<br><img src='cid:qrImage' width='250' />" +
-                                "<br><p>Presentá este código en el ingreso.</p>" +
-                                "<br><p>¡Nos vemos en el show! 🤘</p>";
+            List<byte[]> qrImages = new ArrayList<>();
+            List<String> codigosQR = new ArrayList<>();
 
-                emailService.enviarConfirmacion(email, asunto, mensajeHtml, qrImage);
+            for (int i = 0; i < cantidad; i++) {
 
-                log.info("📧 Email enviado correctamente a {}", email);
+                String qrToken = UUID.randomUUID().toString();
+                codigosQR.add(qrToken);
 
-            } catch (Exception mailEx) {
-                log.error("❌ ERROR enviando email", mailEx);
+                Entrada entrada = new Entrada();
+                entrada.setEventoId(eventoId);
+                entrada.setNombreComprador(nombre);
+                entrada.setEmail(email);
+                entrada.setTelefono(telefono);
+                entrada.setDni(dni);
+                entrada.setPaymentId(paymentId);
+                entrada.setFechaCompra(LocalDateTime.now());
+                entrada.setQrToken(qrToken);
+
+                entradaService.guardar(entrada);
+
+                byte[] qr = qrService.generarQR(qrToken);
+                qrImages.add(qr);
+
+                mensajeHtml.append("<img src='cid:qrImage")
+                        .append(i)
+                        .append("' width='250'/><br><br>");
             }
+
+            // Generar PDF ticket
+            byte[] pdf = ticketPDFService.generarPDF(
+                    nombre,
+                    nombreEvento,
+                    cantidad,
+                    codigosQR
+            );
+
+            // Enviar email
+            emailService.enviarMultiplesQR(
+                    email,
+                    asunto,
+                    mensajeHtml.toString(),
+                    qrImages,
+                    pdf
+            );
 
             return ResponseEntity.ok("OK");
 
         } catch (Exception e) {
-            log.error("🔥 ERROR GENERAL en webhook", e);
+            log.error("Error en webhook", e);
             return ResponseEntity.ok("ERROR");
         }
     }

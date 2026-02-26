@@ -29,23 +29,24 @@ public class PaymentController {
 
         Map<String, Object> item = Map.of(
                 "title", "Entrada para evento " + request.getEventoId(),
-                "quantity", 1,
+                "quantity", request.getCantidad(),
                 "unit_price", 100,
                 "currency_id", "ARS"
         );
 
         Map<String, Object> payer = Map.of(
                 "email", request.getEmail(),
-                "name", request.getNombre(),
-                "surname", request.getApellido()
+                "name", request.getNombre()
         );
 
-        // 🔥 EXTERNAL REFERENCE con todos los datos
+        // eventoId|email|nombre|telefono|dni|cantidad
         String externalRef =
                 request.getEventoId() + "|" +
                         request.getEmail() + "|" +
                         request.getNombre() + "|" +
-                        request.getApellido();
+                        request.getTelefono() + "|" +
+                        request.getDni() + "|" +
+                        request.getCantidad();
 
         Map<String, Object> backUrls = Map.of(
                 "success", frontendUrl + "/pago-exitoso",
@@ -57,11 +58,7 @@ public class PaymentController {
         preference.put("items", List.of(item));
         preference.put("payer", payer);
         preference.put("external_reference", externalRef);
-
-        // Webhook directo al backend
-        preference.put("notification_url",
-                backendUrl + "/api/pagos/webhook");
-
+        preference.put("notification_url", backendUrl + "/api/pagos/webhook");
         preference.put("back_urls", backUrls);
         preference.put("auto_return", "approved");
 

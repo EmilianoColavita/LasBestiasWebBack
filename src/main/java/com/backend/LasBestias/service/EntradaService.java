@@ -17,7 +17,7 @@ public interface EntradaService {
 
     Optional<Entrada> buscarPorQrToken(String qrToken);
 
-    Optional<Entrada> buscarPorPaymentId(String paymentId);
+    List<Entrada> buscarTodasPorPaymentId(String paymentId);
 
     void guardar(Entrada entrada);
 }

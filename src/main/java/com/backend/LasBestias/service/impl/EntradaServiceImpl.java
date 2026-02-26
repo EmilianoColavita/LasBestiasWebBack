@@ -19,15 +19,18 @@ public class EntradaServiceImpl implements EntradaService {
 
     @Override
     public void registrarEntrada(Entrada entrada) {
-
-        if (entradaRepository.existsByPaymentId(entrada.getPaymentId())) {
-            System.out.println("⚠ Entrada ya existe para paymentId=" + entrada.getPaymentId());
-            return;
-        }
-
         entradaRepository.save(entrada);
     }
 
+    @Override
+    public boolean existePorPaymentId(String paymentId) {
+        return entradaRepository.existsByPaymentId(paymentId);
+    }
+
+    @Override
+    public List<Entrada> obtenerPorEvento(Long eventoId) {
+        return entradaRepository.findByEventoId(eventoId);
+    }
 
     @Override
     public List<Entrada> obtenerTodas() {
@@ -40,23 +43,12 @@ public class EntradaServiceImpl implements EntradaService {
     }
 
     @Override
-    public void guardar(Entrada entrada) {
-        entradaRepository.save(entrada);
-    }
-
-    @Override
-    public Optional<Entrada> buscarPorPaymentId(String paymentId){
+    public List<Entrada> buscarTodasPorPaymentId(String paymentId) {
         return entradaRepository.findByPaymentId(paymentId);
     }
 
-
     @Override
-    public boolean existePorPaymentId(String paymentId) {
-        return entradaRepository.existsByPaymentId(paymentId);
-    }
-
-    @Override
-    public List<Entrada> obtenerPorEvento(Long eventoId) {
-        return entradaRepository.findByEventoId(eventoId);
+    public void guardar(Entrada entrada) {
+        entradaRepository.save(entrada);
     }
 }
