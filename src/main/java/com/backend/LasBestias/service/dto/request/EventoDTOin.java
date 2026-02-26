@@ -17,5 +17,6 @@ public class EventoDTOin {
     private String lugar;
     private String ciudad;
     private LocalDateTime fechaEvento;
+    private Double precio;
     private MultipartFile image;
 }

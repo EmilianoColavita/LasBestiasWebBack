@@ -30,6 +30,9 @@ public class Evento {
     @Column(nullable = false)
     private LocalDateTime fechaEvento;
 
+    @Column(nullable = false)
+    private Double precio;
+
     @Column
     private Long imageId;
 }

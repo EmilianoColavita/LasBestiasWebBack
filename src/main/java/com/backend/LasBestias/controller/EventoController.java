@@ -35,13 +35,13 @@ public class EventoController {
 
     // 🟢 Crear un evento
     @PostMapping(consumes = "multipart/form-data")
-    @Operation(summary = "Crear un evento")
     public ResponseEntity<EventoDTO> create(
             @RequestParam String nombre,
             @RequestParam String descripcion,
             @RequestParam String lugar,
             @RequestParam String ciudad,
-            @RequestParam String fechaEvento, // formato esperado: "2025-11-10"
+            @RequestParam String fechaEvento,
+            @RequestParam Double precio, // 👈 nuevo
             @RequestParam(required = false) MultipartFile image
     ) {
         LocalDateTime fecha = LocalDateTime.parse(fechaEvento);
@@ -52,8 +52,10 @@ public class EventoController {
                 lugar,
                 ciudad,
                 fecha,
+                precio,
                 image
         );
+
         return ResponseEntity.ok(eventoService.create(dto));
     }
 
@@ -95,6 +97,7 @@ public class EventoController {
             @RequestParam String lugar,
             @RequestParam String ciudad,
             @RequestParam String fechaEvento,
+            @RequestParam Double precio,
             @RequestParam(required = false) MultipartFile image
     ) {
         LocalDateTime fecha = LocalDateTime.parse(fechaEvento); // ✅ igual que arriba
@@ -105,6 +108,7 @@ public class EventoController {
                 lugar,
                 ciudad,
                 fecha,
+                precio,
                 image
         );
         return ResponseEntity.ok(eventoService.update(id, dto));

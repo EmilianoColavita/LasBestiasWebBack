@@ -13,6 +13,7 @@ public class EventoDTO {
     private String lugar;
     private String ciudad;
     private LocalDateTime fechaEvento;
+    private Double precio;
     private Long imageId;
     private String imagenUrl;
 }

@@ -72,6 +72,7 @@ public class EventoServiceImpl implements EventoService {
         evento.setLugar(updated.getLugar());
         evento.setCiudad(updated.getCiudad());
         evento.setFechaEvento(updated.getFechaEvento());
+        evento.setPrecio(updated.getPrecio());
 
         if (dto.getImage() != null && !dto.getImage().isEmpty()) {
             imageService.deleteImage(evento.getId(), ImageType.EVENTO);
