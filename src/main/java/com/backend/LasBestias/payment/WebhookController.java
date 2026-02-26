@@ -83,11 +83,7 @@ public class WebhookController {
                 return ResponseEntity.ok("DUPLICATE");
             }
 
-            // 🔒 Registrar inmediatamente como procesado
-            PagoProcesado pagoProcesado = new PagoProcesado();
-            pagoProcesado.setPaymentId(paymentId);
-            pagoProcesado.setFechaProcesado(LocalDateTime.now());
-            pagoProcesadoRepository.save(pagoProcesado);
+
 
             // 3️⃣ Consultar MercadoPago
             RestTemplate rest = new RestTemplate();
@@ -109,6 +105,18 @@ public class WebhookController {
                 log.info("Payment {} no aprobado", paymentId);
                 return ResponseEntity.ok("NOT_APPROVED");
             }
+
+// 🔐 Ahora sí bloquear duplicados
+            if (pagoProcesadoRepository.existsById(paymentId)) {
+                log.info("Payment {} ya fue procesado", paymentId);
+                return ResponseEntity.ok("DUPLICATE");
+            }
+
+// 🔒 Registrar como procesado
+            PagoProcesado pagoProcesado = new PagoProcesado();
+            pagoProcesado.setPaymentId(paymentId);
+            pagoProcesado.setFechaProcesado(LocalDateTime.now());
+            pagoProcesadoRepository.save(pagoProcesado);
 
             // 4️⃣ Obtener external_reference
             String externalRef =
