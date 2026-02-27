@@ -56,12 +56,10 @@ public class WebhookController {
 
             String paymentId = null;
 
-            // 1️⃣ Obtener paymentId desde query params
             if ("payment".equals(topic) || "payment".equals(type)) {
                 paymentId = id;
             }
 
-            // 2️⃣ Obtener paymentId desde body
             if (body != null && body.containsKey("data")) {
                 Map<String, Object> data =
                         (Map<String, Object>) body.get("data");
@@ -77,15 +75,18 @@ public class WebhookController {
 
             log.info("Webhook recibido para paymentId: {}", paymentId);
 
-            // 🔐 BLOQUEO REAL CONTRA DUPLICADOS
-            if (pagoProcesadoRepository.existsById(paymentId)) {
-                log.info("Payment {} ya fue procesado", paymentId);
+            // 🔐 Intentar registrar el pago primero (ANTI-DUPLICADO REAL)
+            try {
+                PagoProcesado pagoProcesado = new PagoProcesado();
+                pagoProcesado.setPaymentId(paymentId);
+                pagoProcesado.setFechaProcesado(LocalDateTime.now());
+                pagoProcesadoRepository.saveAndFlush(pagoProcesado);
+            } catch (Exception e) {
+                log.info("Payment {} ya estaba registrado (duplicado)", paymentId);
                 return ResponseEntity.ok("DUPLICATE");
             }
 
-
-
-            // 3️⃣ Consultar MercadoPago
+            // 🔎 Consultar MercadoPago
             RestTemplate rest = new RestTemplate();
             String url = "https://api.mercadopago.com/v1/payments/" + paymentId;
 
@@ -99,26 +100,15 @@ public class WebhookController {
 
             Map<String, Object> mpPayment = response.getBody();
 
-            if (mpPayment == null) return ResponseEntity.ok("NO_MP_DATA");
+            if (mpPayment == null) {
+                return ResponseEntity.ok("NO_MP_DATA");
+            }
 
             if (!"approved".equals(mpPayment.get("status"))) {
                 log.info("Payment {} no aprobado", paymentId);
                 return ResponseEntity.ok("NOT_APPROVED");
             }
 
-// 🔐 Ahora sí bloquear duplicados
-            if (pagoProcesadoRepository.existsById(paymentId)) {
-                log.info("Payment {} ya fue procesado", paymentId);
-                return ResponseEntity.ok("DUPLICATE");
-            }
-
-// 🔒 Registrar como procesado
-            PagoProcesado pagoProcesado = new PagoProcesado();
-            pagoProcesado.setPaymentId(paymentId);
-            pagoProcesado.setFechaProcesado(LocalDateTime.now());
-            pagoProcesadoRepository.save(pagoProcesado);
-
-            // 4️⃣ Obtener external_reference
             String externalRef =
                     (String) mpPayment.get("external_reference");
 
@@ -178,7 +168,6 @@ public class WebhookController {
                         .append("' width='250'/><br><br>");
             }
 
-            // 5️⃣ Generar PDF
             byte[] pdf = ticketPDFService.generarPDF(
                     nombre,
                     nombreEvento,
@@ -186,7 +175,6 @@ public class WebhookController {
                     codigosQR
             );
 
-            // 6️⃣ Enviar email
             emailService.enviarMultiplesQR(
                     email,
                     asunto,
