@@ -8,7 +8,6 @@ import com.backend.LasBestias.service.dto.response.EventoDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
@@ -44,7 +43,6 @@ public class WebhookController {
         this.pagoProcesadoRepository = pagoProcesadoRepository;
     }
 
-    @Transactional
     @PostMapping("/webhook")
     public ResponseEntity<String> webhook(
             @RequestParam(required = false) String topic,
