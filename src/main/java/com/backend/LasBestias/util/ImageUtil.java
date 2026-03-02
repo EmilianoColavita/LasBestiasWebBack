@@ -8,35 +8,56 @@ import java.util.UUID;
 
 public class ImageUtil {
 
-    private static final String slash = "/";
+    private static final String SLASH = "/";
     private static final String MAIN_FOLDER = "images";
 
     public static String buildPath(Image image) {
         return MAIN_FOLDER +
-                slash +
+                SLASH +
                 image.getType() +
-                slash +
-                image.getUserId() +
-                slash +
-                image.getS3name();
+                SLASH +
+                image.getModelId() +
+                SLASH +
+                image.getS3name() +
+                "." +
+                image.getExtension(); // 🔥 IMPORTANTE: agregamos extensión
     }
 
     public static Image createImage(MultipartFile file, ImageType imageType, Long modelId) {
+
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("El archivo está vacío");
+        }
+
         Image image = new Image();
         image.setSize(file.getSize());
-        image.setExtension(getFileExtension(file));
+        image.setExtension(getFileExtension(file)); // 🔥 validamos correctamente
         image.setOriginalName(file.getOriginalFilename());
         image.setS3name(UUID.randomUUID());
         image.setType(imageType);
         image.setModelId(modelId);
+
         return image;
     }
 
     private static String getFileExtension(MultipartFile file) {
-        String originalFilename = file.getOriginalFilename();
-        if (originalFilename != null && originalFilename.contains(".")) {
-            return originalFilename.substring(originalFilename.lastIndexOf('.') + 1);
+
+        String contentType = file.getContentType();
+
+        if (contentType == null) {
+            throw new IllegalArgumentException("Tipo de archivo inválido");
         }
-        return "";
+
+        switch (contentType) {
+            case "image/png":
+                return "png";
+
+            case "image/jpeg":
+            case "image/jpg":
+                return "jpg";
+
+            default:
+                throw new IllegalArgumentException("Solo se permiten imágenes JPG o PNG");
+        }
     }
 }
