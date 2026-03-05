@@ -8,6 +8,7 @@ import com.backend.LasBestias.service.dto.response.EventoDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
@@ -43,6 +44,7 @@ public class WebhookController {
         this.pagoProcesadoRepository = pagoProcesadoRepository;
     }
 
+    @Transactional
     @PostMapping("/webhook")
     public ResponseEntity<String> webhook(
             @RequestParam(required = false) String topic,
@@ -73,19 +75,24 @@ public class WebhookController {
 
             log.info("Webhook recibido para paymentId: {}", paymentId);
 
-            // 🔐 Intentar registrar el pago primero (ANTI-DUPLICADO REAL)
+            // 🔐 Registrar pago para evitar duplicados
             try {
+
                 PagoProcesado pagoProcesado = new PagoProcesado();
                 pagoProcesado.setPaymentId(paymentId);
                 pagoProcesado.setFechaProcesado(LocalDateTime.now());
+
                 pagoProcesadoRepository.saveAndFlush(pagoProcesado);
+
             } catch (Exception e) {
+
                 log.info("Payment {} ya estaba registrado (duplicado)", paymentId);
                 return ResponseEntity.ok("DUPLICATE");
             }
 
             // 🔎 Consultar MercadoPago
             RestTemplate rest = new RestTemplate();
+
             String url = "https://api.mercadopago.com/v1/payments/" + paymentId;
 
             HttpHeaders headers = new HttpHeaders();
@@ -107,6 +114,12 @@ public class WebhookController {
                 return ResponseEntity.ok("NOT_APPROVED");
             }
 
+            // 🔒 Protección extra
+            if (entradaService.existePorPaymentId(paymentId)) {
+                log.info("Entradas ya generadas para payment {}", paymentId);
+                return ResponseEntity.ok("ALREADY_PROCESSED");
+            }
+
             String externalRef =
                     (String) mpPayment.get("external_reference");
 
@@ -124,11 +137,13 @@ public class WebhookController {
             Integer cantidad = Integer.valueOf(parts[5]);
 
             EventoDTO evento = eventoService.getById(eventoId);
+
             String nombreEvento = evento.getNombre();
 
             String asunto = "🎟 Tus entradas - Las Bestias";
 
             StringBuilder mensajeHtml = new StringBuilder();
+
             mensajeHtml.append("<h1>¡Gracias por tu compra!</h1>");
             mensajeHtml.append("<p>Hola ").append(nombre).append("</p>");
             mensajeHtml.append("<p>Evento: <b>")
@@ -144,9 +159,11 @@ public class WebhookController {
             for (int i = 0; i < cantidad; i++) {
 
                 String qrToken = UUID.randomUUID().toString();
+
                 codigosQR.add(qrToken);
 
                 Entrada entrada = new Entrada();
+
                 entrada.setEventoId(eventoId);
                 entrada.setNombreComprador(nombre);
                 entrada.setEmail(email);
@@ -159,6 +176,7 @@ public class WebhookController {
                 entradaService.guardar(entrada);
 
                 byte[] qr = qrService.generarQR(qrToken);
+
                 qrImages.add(qr);
 
                 mensajeHtml.append("<img src='cid:qrImage")
@@ -186,7 +204,9 @@ public class WebhookController {
             return ResponseEntity.ok("OK");
 
         } catch (Exception e) {
+
             log.error("Error en webhook", e);
+
             return ResponseEntity.ok("ERROR");
         }
     }
