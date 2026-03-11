@@ -14,4 +14,8 @@ public interface EmailService {
                            String mensajeHtml,
                            List<byte[]> qrImages,
                            byte[] pdf);
+
+    void enviarMensajeContacto(String nombre,
+                               String email,
+                               String mensaje);
 }

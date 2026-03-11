@@ -1,20 +1,20 @@
 package com.backend.LasBestias.controller;
 
+import com.backend.LasBestias.Security.RateLimitService;
 import com.backend.LasBestias.model.Entrada;
 import com.backend.LasBestias.service.EntradaService;
 import com.backend.LasBestias.service.EventoService;
 import com.backend.LasBestias.service.QRService;
 import com.backend.LasBestias.service.TicketPDFService;
 import com.backend.LasBestias.service.dto.response.EventoDTO;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -25,32 +25,41 @@ public class EntradaController {
     private final QRService qrService;
     private final TicketPDFService ticketPDFService;
     private final EventoService eventoService;
+    private final RateLimitService rateLimitService;
 
     public EntradaController(EntradaService entradaService,
                              QRService qrService,
                              TicketPDFService ticketPDFService,
-                             EventoService eventoService) {
+                             EventoService eventoService,
+                             RateLimitService rateLimitService) {
+
         this.entradaService = entradaService;
         this.qrService = qrService;
         this.ticketPDFService = ticketPDFService;
         this.eventoService = eventoService;
+        this.rateLimitService = rateLimitService;
     }
 
-    // 🔹 Listar todas
     @GetMapping
     public List<Entrada> listarTodas() {
         return entradaService.obtenerTodas();
     }
 
-    // 🔹 Listar por evento
     @GetMapping("/evento/{eventoId}")
     public List<Entrada> obtenerEntradasPorEvento(@PathVariable Long eventoId) {
         return entradaService.obtenerPorEvento(eventoId);
     }
 
-    // 🔹 Validar QR
     @PostMapping("/validar")
-    public ResponseEntity<?> validarEntrada(@RequestBody Map<String, String> body) {
+    public ResponseEntity<?> validarEntrada(@RequestBody Map<String, String> body,
+                                            HttpServletRequest request) {
+
+        String ip = request.getRemoteAddr();
+
+        if (!rateLimitService.isAllowed(ip)) {
+            return ResponseEntity.status(429)
+                    .body("Demasiados intentos de validación");
+        }
 
         String token = body.get("token");
 
@@ -78,7 +87,6 @@ public class EntradaController {
         ));
     }
 
-    // 🔹 RESUMEN PARA FRONTEND
     @GetMapping("/payment/{paymentId}/resumen")
     public ResponseEntity<?> obtenerResumen(@PathVariable String paymentId) {
 
@@ -94,14 +102,13 @@ public class EntradaController {
         EventoDTO evento = eventoService.getById(primera.getEventoId());
 
         return ResponseEntity.ok(Map.of(
-                "evento", evento.getNombre(), // ajustá si el DTO usa otro nombre
+                "evento", evento.getNombre(),
                 "cantidad", entradas.size(),
                 "orden", paymentId,
                 "pdfDisponible", true
         ));
     }
 
-    // 🔹 DESCARGAR PDF CON TODAS LAS ENTRADAS
     @GetMapping("/payment/{paymentId}/pdf")
     public ResponseEntity<byte[]> descargarPdf(@PathVariable String paymentId) {
 
@@ -123,7 +130,7 @@ public class EntradaController {
 
         byte[] pdf = ticketPDFService.generarPDF(
                 primera.getNombreComprador(),
-                evento.getNombre(), // ajustá si es getTitulo()
+                evento.getNombre(),
                 entradas.size(),
                 codigosQR
         );
@@ -135,7 +142,6 @@ public class EntradaController {
                 .body(pdf);
     }
 
-    // 🔹 Descargar QR individual
     @GetMapping("/qr/{token}")
     public ResponseEntity<byte[]> descargarQR(@PathVariable String token) {
 
