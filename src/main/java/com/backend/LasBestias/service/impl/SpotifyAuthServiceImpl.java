@@ -59,6 +59,9 @@ public class SpotifyAuthServiceImpl implements SpotifyAuthService {
             }
 
             String token = (String) response.getBody().get("access_token");
+
+            log.info("🎧 Token Spotify obtenido correctamente");
+
             int expiresIn = (Integer) response.getBody().get("expires_in");
 
             cachedToken = token;
