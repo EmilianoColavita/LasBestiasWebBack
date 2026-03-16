@@ -2,132 +2,192 @@ package com.backend.LasBestias.service.impl;
 
 import com.backend.LasBestias.service.MusicaService;
 import com.backend.LasBestias.service.SpotifyAuthService;
-import com.backend.LasBestias.service.dto.response.MusicaDTO;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import com.backend.LasBestias.service.dto.response.AlbumDTO;
+import com.backend.LasBestias.service.dto.response.TrackDTO;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.*;
 
 @Service
-@RequiredArgsConstructor
-@Slf4j
 public class MusicaServiceImpl implements MusicaService {
 
     @Value("${spotify.artist.id}")
     private String artistId;
 
-    private final SpotifyAuthService spotifyAuthService;
+    @Autowired
+    private SpotifyAuthService spotifyAuthService;
 
     @Override
     @Cacheable("spotify-musica")
-    public List<MusicaDTO> getMusica() {
+    public List<TrackDTO> getMusica() {
 
-        log.info("🎵 Obteniendo música desde Spotify...");
-
-        String token = spotifyAuthService.getAccessToken();
-        RestTemplate restTemplate = new RestTemplate();
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + token);
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-
-        String albumsUrl = UriComponentsBuilder
-                .fromHttpUrl("https://api.spotify.com/v1/artists/{id}/albums")
-                .queryParam("limit", 20)
-                .buildAndExpand(artistId)
-                .toUriString();
-
-        log.info("Spotify URL: {}", albumsUrl);
+        List<TrackDTO> tracks = new ArrayList<>();
 
         try {
 
-            ResponseEntity<Map> albumsResponse =
-                    restTemplate.exchange(albumsUrl, HttpMethod.GET, entity, Map.class);
+            String token = spotifyAuthService.getAccessToken();
 
-            Map<String, Object> body = albumsResponse.getBody();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(token);
 
-            if (body == null || !body.containsKey("items")) {
-                log.error("Spotify devolvió respuesta inválida");
-                return new ArrayList<>();
-            }
+            HttpEntity<String> entity = new HttpEntity<>(headers);
 
-            List<Map<String, Object>> albums =
-                    (List<Map<String, Object>>) body.get("items");
+            RestTemplate restTemplate = new RestTemplate();
 
-            Map<String, MusicaDTO> cancionesUnicas = new LinkedHashMap<>();
+            String url =
+                    "https://api.spotify.com/v1/artists/" + artistId +
+                            "/albums?market=AR&limit=10&include_groups=album,single";
 
-            for (Map<String, Object> album : albums) {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    Map.class
+            );
+
+            List<Map<String, Object>> items =
+                    (List<Map<String, Object>>) response.getBody().get("items");
+
+            for (Map<String, Object> album : items) {
 
                 String albumId = (String) album.get("id");
                 String albumName = (String) album.get("name");
 
-                List<Map<String, Object>> images =
-                        (List<Map<String, Object>>) album.get("images");
+                List<Map> images = (List<Map>) album.get("images");
 
-                String imagenUrl =
-                        images != null && !images.isEmpty()
-                                ? (String) images.get(0).get("url")
-                                : null;
+                String albumImage =
+                        images.isEmpty() ? null : (String) images.get(0).get("url");
 
-                String tracksUrl =
-                        String.format("https://api.spotify.com/v1/albums/%s/tracks?limit=50", albumId);
+                List<TrackDTO> albumTracks =
+                        getTracks(albumId, token, albumImage, albumName);
 
-                ResponseEntity<Map> tracksResponse =
-                        restTemplate.exchange(tracksUrl, HttpMethod.GET, entity, Map.class);
-
-                Map<String, Object> tracksBody = tracksResponse.getBody();
-
-                if (tracksBody == null || !tracksBody.containsKey("items")) continue;
-
-                List<Map<String, Object>> tracks =
-                        (List<Map<String, Object>>) tracksBody.get("items");
-
-                for (Map<String, Object> track : tracks) {
-
-                    String id = (String) track.get("id");
-                    if (id == null) continue;
-
-                    if (cancionesUnicas.containsKey(id)) continue;
-
-                    String titulo = (String) track.get("name");
-
-                    Map<String, Object> externalUrls =
-                            (Map<String, Object>) track.get("external_urls");
-
-                    String urlSpotify =
-                            externalUrls != null ? (String) externalUrls.get("spotify") : null;
-
-                    MusicaDTO dto = new MusicaDTO(
-                            id,
-                            titulo,
-                            albumName,
-                            id,
-                            urlSpotify,
-                            imagenUrl
-                    );
-
-                    cancionesUnicas.put(id, dto);
-                }
+                tracks.addAll(albumTracks);
             }
 
-            List<MusicaDTO> resultado = new ArrayList<>(cancionesUnicas.values());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
-            log.info("✅ Canciones obtenidas: {}", resultado.size());
+        return tracks;
+    }
 
-            return resultado;
+    @Override
+    @Cacheable("spotify-musica")
+    public List<AlbumDTO> getDiscografia() {
+
+        List<AlbumDTO> albums = new ArrayList<>();
+
+        try {
+
+            String token = spotifyAuthService.getAccessToken();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(token);
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            RestTemplate restTemplate = new RestTemplate();
+
+            String url =
+                    "https://api.spotify.com/v1/artists/" + artistId +
+                            "/albums?market=AR&limit=50&include_groups=album,single";
+
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    Map.class
+            );
+
+            List<Map<String, Object>> items =
+                    (List<Map<String, Object>>) response.getBody().get("items");
+
+            for (Map<String, Object> album : items) {
+
+                String albumId = (String) album.get("id");
+                String nombre = (String) album.get("name");
+                String fecha = (String) album.get("release_date");
+
+                List<Map> images = (List<Map>) album.get("images");
+
+                String imagen =
+                        images.isEmpty() ? null : (String) images.get(0).get("url");
+
+                List<TrackDTO> tracks =
+                        getTracks(albumId, token, imagen, nombre);
+
+                AlbumDTO dto = new AlbumDTO(
+                        albumId,
+                        nombre,
+                        imagen,
+                        fecha,
+                        tracks
+                );
+
+                albums.add(dto);
+            }
 
         } catch (Exception e) {
-
-            log.error("❌ Error consultando Spotify: {}", e.getMessage());
             e.printStackTrace();
-
-            return new ArrayList<>();
         }
+
+        return albums;
+    }
+
+    private List<TrackDTO> getTracks(String albumId, String token, String albumImage, String albumName) {
+
+        List<TrackDTO> tracks = new ArrayList<>();
+
+        try {
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(token);
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            RestTemplate restTemplate = new RestTemplate();
+
+            String url =
+                    "https://api.spotify.com/v1/albums/" + albumId +
+                            "/tracks?market=AR&limit=50";
+
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    Map.class
+            );
+
+            List<Map<String, Object>> items =
+                    (List<Map<String, Object>>) response.getBody().get("items");
+
+            for (Map<String, Object> track : items) {
+
+                String id = (String) track.get("id");
+                String name = (String) track.get("name");
+
+                TrackDTO dto = new TrackDTO(
+                        id,
+                        name,
+                        albumImage,
+                        id,
+                        "https://open.spotify.com/track/" + id,
+                        albumName
+                );
+
+                tracks.add(dto);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return tracks;
     }
 }

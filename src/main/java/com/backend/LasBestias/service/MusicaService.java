@@ -1,8 +1,14 @@
 package com.backend.LasBestias.service;
 
-import com.backend.LasBestias.service.dto.response.MusicaDTO;
+
+import com.backend.LasBestias.service.dto.response.AlbumDTO;
+import com.backend.LasBestias.service.dto.response.TrackDTO;
 import java.util.List;
 
 public interface MusicaService {
-    List<MusicaDTO> getMusica();
+
+    List<TrackDTO> getMusica();
+
+    List<AlbumDTO> getDiscografia();
+
 }

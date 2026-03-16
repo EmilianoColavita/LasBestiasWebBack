@@ -1,21 +1,29 @@
 package com.backend.LasBestias.controller;
 
+import com.backend.LasBestias.service.dto.response.AlbumDTO;
+import com.backend.LasBestias.service.dto.response.TrackDTO;
 import com.backend.LasBestias.service.MusicaService;
-import com.backend.LasBestias.service.dto.response.MusicaDTO;
-import lombok.RequiredArgsConstructor;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/musica")
-@RequiredArgsConstructor
+@CrossOrigin
 public class MusicaController {
 
-    private final MusicaService musicaService;
+    @Autowired
+    private MusicaService musicaService;
 
     @GetMapping
-    public List<MusicaDTO> getMusica() {
+    public List<TrackDTO> getMusica() {
         return musicaService.getMusica();
+    }
+
+    @GetMapping("/discografia")
+    public List<AlbumDTO> getDiscografia() {
+        return musicaService.getDiscografia();
     }
 }
