@@ -104,6 +104,7 @@ public class WebhookController {
                     rest.exchange(url, HttpMethod.GET, entity, Map.class);
 
             Map<String, Object> mpPayment = response.getBody();
+            Double totalPagado = ((Number) mpPayment.get("transaction_amount")).doubleValue();
 
             if (mpPayment == null) {
                 return ResponseEntity.ok("NO_MP_DATA");
@@ -135,6 +136,7 @@ public class WebhookController {
             String telefono = parts[3];
             String dni = parts[4];
             Integer cantidad = Integer.valueOf(parts[5]);
+            Double precioUnitario = totalPagado / cantidad;
 
             EventoDTO evento = eventoService.getById(eventoId);
 
@@ -172,6 +174,7 @@ public class WebhookController {
                 entrada.setPaymentId(paymentId);
                 entrada.setFechaCompra(LocalDateTime.now());
                 entrada.setQrToken(qrToken);
+                entrada.setPrecioPagado(precioUnitario);
 
                 entradaService.guardar(entrada);
 

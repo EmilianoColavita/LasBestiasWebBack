@@ -35,4 +35,6 @@ public class Entrada {
     private LocalDateTime fechaUso;
 
     private Boolean usada = false;
+
+    private Double precioPagado;
 }
