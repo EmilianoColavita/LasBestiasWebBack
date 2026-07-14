@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
@@ -75,20 +76,16 @@ public class WebhookController {
 
             log.info("Webhook recibido para paymentId: {}", paymentId);
 
-            // 🔐 Registrar pago para evitar duplicados
-            try {
-
-                PagoProcesado pagoProcesado = new PagoProcesado();
-                pagoProcesado.setPaymentId(paymentId);
-                pagoProcesado.setFechaProcesado(LocalDateTime.now());
-
-                pagoProcesadoRepository.saveAndFlush(pagoProcesado);
-
-            } catch (Exception e) {
-
+            // Bug fix: check existsById evita depender de una excepción de constraint para detectar duplicados
+            if (pagoProcesadoRepository.existsById(paymentId)) {
                 log.info("Payment {} ya estaba registrado (duplicado)", paymentId);
                 return ResponseEntity.ok("DUPLICATE");
             }
+
+            PagoProcesado pagoProcesado = new PagoProcesado();
+            pagoProcesado.setPaymentId(paymentId);
+            pagoProcesado.setFechaProcesado(LocalDateTime.now());
+            pagoProcesadoRepository.save(pagoProcesado);
 
             // 🔎 Consultar MercadoPago
             RestTemplate rest = new RestTemplate();
@@ -103,12 +100,15 @@ public class WebhookController {
             ResponseEntity<Map> response =
                     rest.exchange(url, HttpMethod.GET, entity, Map.class);
 
+            // Bug fix: null check antes de usar mpPayment
             Map<String, Object> mpPayment = response.getBody();
-            Double totalPagado = ((Number) mpPayment.get("transaction_amount")).doubleValue();
 
             if (mpPayment == null) {
+                TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
                 return ResponseEntity.ok("NO_MP_DATA");
             }
+
+            Double totalPagado = ((Number) mpPayment.get("transaction_amount")).doubleValue();
 
             if (!"approved".equals(mpPayment.get("status"))) {
                 log.info("Payment {} no aprobado", paymentId);
@@ -208,9 +208,13 @@ public class WebhookController {
 
         } catch (Exception e) {
 
-            log.error("Error en webhook", e);
+            log.error("Error en webhook para paymentId {}: {}", paymentId, e.getMessage(), e);
 
-            return ResponseEntity.ok("ERROR");
+            // Bug fix: forzar rollback para que no queden entradas parciales en la DB
+            // y MercadoPago pueda reintentar el webhook limpiamente
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+
+            return ResponseEntity.status(500).body("ERROR");
         }
     }
 }
