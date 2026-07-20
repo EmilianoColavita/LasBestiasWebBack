@@ -53,9 +53,9 @@ public class WebhookController {
             @RequestParam(required = false) String id,
             @RequestBody(required = false) Map<String, Object> body) {
 
-        try {
+        String paymentId = null;
 
-            String paymentId = null;
+        try {
 
             if ("payment".equals(topic) || "payment".equals(type)) {
                 paymentId = id;
