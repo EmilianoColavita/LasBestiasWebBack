@@ -27,28 +27,30 @@ public class VideoServiceImpl implements VideoService {
     @Override
     public VideoDTO getUltimoVideo() {
 
-        String url = String.format(
-                "https://www.googleapis.com/youtube/v3/search?key=%s&channelId=%s&part=snippet,id&order=date&maxResults=1",
-                apiKey, channelId
-        );
-
-        ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
-        Map body = response.getBody();
-
-        if (body == null || !body.containsKey("items")) return null;
-
-        List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
-        if (items.isEmpty()) return null;
-
-        return mapToVideoDTO(items.get(0));
+        List<VideoDTO> videos = fetchUploads(1);
+        return videos.isEmpty() ? null : videos.get(0);
     }
 
     @Override
     public List<VideoDTO> getVideosRecientes() {
 
+        return fetchUploads(4);
+    }
+
+    /**
+     * Lee la playlist de "uploads" del canal (UU...) en lugar de usar /search.
+     * /search devuelve también playlists (y cuesta 100 unidades de cuota por llamada);
+     * playlistItems devuelve solo videos subidos y cuesta 1 unidad.
+     */
+    private List<VideoDTO> fetchUploads(int maxResults) {
+
+        String uploadsPlaylistId = channelId.startsWith("UC")
+                ? "UU" + channelId.substring(2)
+                : channelId;
+
         String url = String.format(
-                "https://www.googleapis.com/youtube/v3/search?key=%s&channelId=%s&part=snippet,id&order=date&maxResults=4",
-                apiKey, channelId
+                "https://www.googleapis.com/youtube/v3/playlistItems?key=%s&playlistId=%s&part=snippet&maxResults=%d",
+                apiKey, uploadsPlaylistId, maxResults
         );
 
         ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
@@ -66,14 +68,15 @@ public class VideoServiceImpl implements VideoService {
 
     private VideoDTO mapToVideoDTO(Map<String, Object> item) {
 
-        Map<String, Object> idData = (Map<String, Object>) item.get("id");
         Map<String, Object> snippet = (Map<String, Object>) item.get("snippet");
+        if (snippet == null) return null;
 
-        if (idData == null || snippet == null || !idData.containsKey("videoId")) {
+        Map<String, Object> resourceId = (Map<String, Object>) snippet.get("resourceId");
+        if (resourceId == null || !resourceId.containsKey("videoId")) {
             return null;
         }
 
-        String videoId = (String) idData.get("videoId");
+        String videoId = (String) resourceId.get("videoId");
 
         // 🔥 SOLUCIÓN: des-escapamos HTML que viene de YouTube
         String rawTitle = (String) snippet.get("title");
