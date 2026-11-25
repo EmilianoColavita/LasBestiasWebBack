@@ -2,6 +2,9 @@ package com.backend.LasBestias.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -30,9 +33,29 @@ public class Evento {
     @Column(nullable = false)
     private LocalDateTime fechaEvento;
 
-    @Column(nullable = false)
+    // Obligatorio solo para MERCADO_PAGO (validado en el service).
+    // Ojo: ddl-auto=update no quita el NOT NULL de la columna existente;
+    // de eso se encarga EventoSchemaMigration al arrancar.
+    @Column
     private Double precio;
 
     @Column
     private Long imageId;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @ColumnDefault("'MERCADO_PAGO'")
+    @Column(nullable = false, length = 30)
+    private ModoVenta modoVenta = ModoVenta.MERCADO_PAGO;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(length = 30)
+    private PlataformaVenta plataformaVenta;
+
+    @Column(length = 500)
+    private String urlVenta;
+
+    @Column(length = 200)
+    private String notaVenta;
 }

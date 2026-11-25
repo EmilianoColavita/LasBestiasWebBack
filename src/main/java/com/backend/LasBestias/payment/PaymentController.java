@@ -1,6 +1,7 @@
 package com.backend.LasBestias.payment;
 
 import com.backend.LasBestias.Security.RateLimitService;
+import com.backend.LasBestias.model.ModoVenta;
 import com.backend.LasBestias.service.EventoService;
 import com.backend.LasBestias.service.dto.response.EventoDTO;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 
@@ -50,6 +52,16 @@ public class PaymentController {
 
         if (evento == null) {
             throw new RuntimeException("Evento no encontrado");
+        }
+
+        // Solo se puede pagar por la web si el evento se vende por Mercado Pago.
+        if (evento.getModoVenta() != ModoVenta.MERCADO_PAGO) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Las entradas de este evento no se venden por la web con Mercado Pago");
+        }
+        if (evento.getPrecio() == null || evento.getPrecio() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "El evento no tiene un precio válido configurado");
         }
 
         Double precioUnitario = evento.getPrecio();

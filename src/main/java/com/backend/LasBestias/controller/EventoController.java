@@ -1,5 +1,7 @@
 package com.backend.LasBestias.controller;
 
+import com.backend.LasBestias.model.ModoVenta;
+import com.backend.LasBestias.model.PlataformaVenta;
 import com.backend.LasBestias.util.PaginationUtil;
 import com.backend.LasBestias.service.EventoService;
 import com.backend.LasBestias.service.dto.request.EventoDTOin;
@@ -17,10 +19,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 @RestController
 @RequestMapping("/api/eventos")
@@ -41,8 +46,12 @@ public class EventoController {
             @RequestParam String lugar,
             @RequestParam String ciudad,
             @RequestParam String fechaEvento,
-            @RequestParam Double precio, // 👈 nuevo
-            @RequestParam(required = false) MultipartFile image
+            @RequestParam(required = false) Double precio,
+            @RequestParam(required = false) MultipartFile image,
+            @RequestParam(required = false) String modoVenta,
+            @RequestParam(required = false) String plataformaVenta,
+            @RequestParam(required = false) String urlVenta,
+            @RequestParam(required = false) String notaVenta
     ) {
         LocalDateTime fecha = LocalDateTime.parse(fechaEvento);
 
@@ -53,7 +62,11 @@ public class EventoController {
                 ciudad,
                 fecha,
                 precio,
-                image
+                image,
+                parseEnum(ModoVenta.class, modoVenta, "modoVenta"),
+                parseEnum(PlataformaVenta.class, plataformaVenta, "plataformaVenta"),
+                urlVenta,
+                notaVenta
         );
 
         return ResponseEntity.ok(eventoService.create(dto));
@@ -97,8 +110,12 @@ public class EventoController {
             @RequestParam String lugar,
             @RequestParam String ciudad,
             @RequestParam String fechaEvento,
-            @RequestParam Double precio,
-            @RequestParam(required = false) MultipartFile image
+            @RequestParam(required = false) Double precio,
+            @RequestParam(required = false) MultipartFile image,
+            @RequestParam(required = false) String modoVenta,
+            @RequestParam(required = false) String plataformaVenta,
+            @RequestParam(required = false) String urlVenta,
+            @RequestParam(required = false) String notaVenta
     ) {
         LocalDateTime fecha = LocalDateTime.parse(fechaEvento); // ✅ igual que arriba
 
@@ -109,7 +126,11 @@ public class EventoController {
                 ciudad,
                 fecha,
                 precio,
-                image
+                image,
+                parseEnum(ModoVenta.class, modoVenta, "modoVenta"),
+                parseEnum(PlataformaVenta.class, plataformaVenta, "plataformaVenta"),
+                urlVenta,
+                notaVenta
         );
         return ResponseEntity.ok(eventoService.update(id, dto));
     }
@@ -120,5 +141,19 @@ public class EventoController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         eventoService.delete(id);
         return ResponseEntity.ok().build();
+    }
+
+    // Convierte el valor del multipart al enum (sin distinguir mayúsculas). Vacío -> null.
+    private static <E extends Enum<E>> E parseEnum(Class<E> tipo, String valor, String campo) {
+        if (valor == null || valor.isBlank()) {
+            return null;
+        }
+        try {
+            return Enum.valueOf(tipo, valor.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Valor inválido para " + campo + ": '" + valor + "'. Valores posibles: "
+                            + Arrays.toString(tipo.getEnumConstants()));
+        }
     }
 }

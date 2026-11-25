@@ -1,5 +1,7 @@
 package com.backend.LasBestias.service.dto.response;
 
+import com.backend.LasBestias.model.ModoVenta;
+import com.backend.LasBestias.model.PlataformaVenta;
 import lombok.Data;
 
 
@@ -16,4 +18,8 @@ public class EventoDTO {
     private Double precio;
     private Long imageId;
     private String imagenUrl;
+    private ModoVenta modoVenta;
+    private PlataformaVenta plataformaVenta;
+    private String urlVenta;
+    private String notaVenta;
 }
